@@ -62,7 +62,7 @@ const COPY_LIST = [
     ["res/welcome.html", "webapp"],
     ["res/welcome/**", "webapp/welcome"],
     ["res/themes/**", "webapp/themes"],
-    ["res/vector-icons/**", "webapp/vector-icons"],
+    ["res/favicons/**", "webapp/favicons"],
     ["node_modules/matrix-react-sdk/res/media/**", "webapp/media"],
     ["node_modules/olm/olm_legacy.js", "webapp", { directwatch: 1 }],
     ["./config.json", "webapp", { directwatch: 1 }],
