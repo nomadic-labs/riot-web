@@ -1,8 +1,12 @@
-Riot
+Safe Support Messaging Platform
 ====
 
-Riot (formerly known as Vector) is a Matrix web client built using the [Matrix
-React SDK](https://github.com/matrix-org/matrix-react-sdk).
+The Safe Support Messaging Platform is a lightly customized fork of [Riot](https://github.com/vector-im/riot-web).
+
+Modifications
+=============
+
+* customized login screen (from `config.json`)
 
 Supported Environments
 ======================
