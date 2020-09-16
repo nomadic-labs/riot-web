@@ -27,10 +27,11 @@ import BaseEventIndexManager, {
     MatrixEvent,
     MatrixProfile,
     SearchArgs,
-    SearchResult
+    SearchResult,
 } from 'matrix-react-sdk/src/indexing/BaseEventIndexManager';
 import dis from 'matrix-react-sdk/src/dispatcher/dispatcher';
 import {_t, _td} from 'matrix-react-sdk/src/languageHandler';
+import SdkConfig from 'matrix-react-sdk/src/SdkConfig';
 import * as rageshake from 'matrix-react-sdk/src/rageshake/rageshake';
 import {MatrixClient} from "matrix-js-sdk/src/client";
 import {Room} from "matrix-js-sdk/src/models/room";
@@ -44,7 +45,9 @@ import {randomString} from "matrix-js-sdk/src/randomstring";
 import {Action} from "matrix-react-sdk/src/dispatcher/actions";
 import {ActionPayload} from "matrix-react-sdk/src/dispatcher/payloads";
 import {showToast as showUpdateToast} from "matrix-react-sdk/src/toasts/UpdateToast";
-import { CheckUpdatesPayload } from 'matrix-react-sdk/src/dispatcher/payloads/CheckUpdatesPayload';
+import {CheckUpdatesPayload} from "matrix-react-sdk/src/dispatcher/payloads/CheckUpdatesPayload";
+import ToastStore from "matrix-react-sdk/src/stores/ToastStore";
+import GenericExpiringToast from "matrix-react-sdk/src/components/views/toasts/GenericExpiringToast";
 
 const ipcRenderer = window.ipcRenderer;
 const isMac = navigator.platform.toUpperCase().includes('MAC');
@@ -96,7 +99,7 @@ interface IPCPayload {
 
 class SeshatIndexManager extends BaseEventIndexManager {
     private pendingIpcCalls: Record<number, { resolve, reject }> = {};
-    private nextIpcCallId: number = 0;
+    private nextIpcCallId = 0;
 
     constructor() {
         super();
@@ -153,6 +156,10 @@ class SeshatIndexManager extends BaseEventIndexManager {
         return this._ipcCall('isEventIndexEmpty');
     }
 
+    async isRoomIndexed(roomId: string): Promise<boolean> {
+        return this._ipcCall('isRoomIndexed', roomId);
+    }
+
     async commitLiveEvents(): Promise<void> {
         return this._ipcCall('commitLiveEvents');
     }
@@ -193,6 +200,14 @@ class SeshatIndexManager extends BaseEventIndexManager {
         return this._ipcCall('getStats');
     }
 
+    async getUserVersion(): Promise<number> {
+        return this._ipcCall('getUserVersion');
+    }
+
+    async setUserVersion(version: number): Promise<void> {
+        return this._ipcCall('setUserVersion', version);
+    }
+
     async deleteEventIndex(): Promise<void> {
         return this._ipcCall('deleteEventIndex');
     }
@@ -201,7 +216,7 @@ class SeshatIndexManager extends BaseEventIndexManager {
 export default class ElectronPlatform extends VectorBasePlatform {
     private eventIndexManager: BaseEventIndexManager = new SeshatIndexManager();
     private pendingIpcCalls: Record<number, { resolve, reject }> = {};
-    private nextIpcCallId: number = 0;
+    private nextIpcCallId = 0;
     // this is the opaque token we pass to the HS which when we get it in our callback we can resolve to a profile
     private ssoID: string = randomString(32);
 
@@ -228,11 +243,31 @@ export default class ElectronPlatform extends VectorBasePlatform {
             rageshake.flush();
         });
 
-        ipcRenderer.on('ipcReply', this._onIpcReply.bind(this));
-        ipcRenderer.on('update-downloaded', this.onUpdateDownloaded.bind(this));
+        ipcRenderer.on('ipcReply', this._onIpcReply);
+        ipcRenderer.on('update-downloaded', this.onUpdateDownloaded);
 
         ipcRenderer.on('preferences', () => {
             dis.fire(Action.ViewUserSettings);
+        });
+
+        ipcRenderer.on('userDownloadCompleted', (ev, {path, name}) => {
+            const onAccept = () => {
+                ipcRenderer.send('userDownloadOpen', {path});
+            };
+
+            ToastStore.sharedInstance().addOrReplaceToast({
+                key: `DOWNLOAD_TOAST_${path}`,
+                title: _t("Download Completed"),
+                props: {
+                    description: name,
+                    acceptLabel: _t("Open"),
+                    onAccept,
+                    dismissLabel: _t("Dismiss"),
+                    numSeconds: 10,
+                },
+                component: GenericExpiringToast,
+                priority: 99,
+            });
         });
 
         // register OS-specific shortcuts
@@ -275,11 +310,15 @@ export default class ElectronPlatform extends VectorBasePlatform {
         return this._ipcCall('getConfig');
     }
 
-    async onUpdateDownloaded(ev, {releaseNotes, releaseName}) {
+    onUpdateDownloaded = async (ev, {releaseNotes, releaseName}) => {
+        dis.dispatch<CheckUpdatesPayload>({
+            action: Action.CheckUpdates,
+            status: UpdateCheckStatus.Ready,
+        });
         if (this.shouldShowUpdate(releaseName)) {
             showUpdateToast(await this.getAppVersion(), releaseName, releaseNotes);
         }
-    }
+    };
 
     getHumanReadableName(): string {
         return 'Electron Platform'; // no translation required: only used for analytics
@@ -333,10 +372,6 @@ export default class ElectronPlatform extends VectorBasePlatform {
 
     loudNotification(ev: Event, room: Object) {
         ipcRenderer.send('loudNotification');
-    }
-
-    clearNotification(notif: Notification) {
-        notif.close();
     }
 
     async getAppVersion(): Promise<string> {
@@ -399,7 +434,11 @@ export default class ElectronPlatform extends VectorBasePlatform {
     }
 
     getDefaultDeviceDisplayName(): string {
-        return _t('Riot Desktop (%(platformName)s)', { platformName: platformFriendlyName() });
+        const brand = SdkConfig.get().brand;
+        return _t('%(brand)s Desktop (%(platformName)s)', {
+            brand,
+            platformName: platformFriendlyName(),
+        });
     }
 
     screenCaptureErrorString(): string | null {
@@ -426,7 +465,7 @@ export default class ElectronPlatform extends VectorBasePlatform {
         });
     }
 
-    _onIpcReply(ev, payload) {
+    _onIpcReply = (ev, payload) => {
         if (payload.id === undefined) {
             console.warn("Ignoring IPC reply with no ID");
             return;
@@ -444,7 +483,7 @@ export default class ElectronPlatform extends VectorBasePlatform {
         } else {
             callbacks.resolve(payload.reply);
         }
-    }
+    };
 
     getEventIndexingManager(): BaseEventIndexManager | null {
         return this.eventIndexManager;
@@ -459,8 +498,8 @@ export default class ElectronPlatform extends VectorBasePlatform {
 
     getSSOCallbackUrl(fragmentAfterLogin: string): URL {
         const url = super.getSSOCallbackUrl(fragmentAfterLogin);
-        url.protocol = "riot";
-        url.searchParams.set("riot-desktop-ssoid", this.ssoID);
+        url.protocol = "element";
+        url.searchParams.set("element-desktop-ssoid", this.ssoID);
         return url;
     }
 
@@ -499,5 +538,31 @@ export default class ElectronPlatform extends VectorBasePlatform {
         }
 
         return handled;
+    }
+
+    async getPickleKey(userId: string, deviceId: string): Promise<string | null> {
+        try {
+            return await this._ipcCall('getPickleKey', userId, deviceId);
+        } catch (e) {
+            // if we can't connect to the password storage, assume there's no
+            // pickle key
+            return null;
+        }
+    }
+
+    async createPickleKey(userId: string, deviceId: string): Promise<string | null> {
+        try {
+            return await this._ipcCall('createPickleKey', userId, deviceId);
+        } catch (e) {
+            // if we can't connect to the password storage, assume there's no
+            // pickle key
+            return null;
+        }
+    }
+
+    async destroyPickleKey(userId: string, deviceId: string): Promise<void> {
+        try {
+            await this._ipcCall('destroyPickleKey', userId, deviceId);
+        } catch (e) {}
     }
 }
