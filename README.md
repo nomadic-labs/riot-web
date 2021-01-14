@@ -7,6 +7,16 @@ Modifications
 =============
 
 * customized login screen (from `config.json`)
+* setup script that pulls configuration settings from admin app and writes to `config.json`
+
+Setup Script
+============
+
+** The `config.json` must have the following values set:
+- `settings_endpoint`: the url of the admin app endpoint to fetch the settings JSON
+- `default_server_config["m.homeserver']["base_url"]`: the homeserver url must match the `web_matrixServerUrl` setting in the admin app database.
+
+To run the script, use the command `yarn setup`.
 
 Supported Environments
 ======================
