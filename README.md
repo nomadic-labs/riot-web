@@ -1,8 +1,27 @@
 Element
 =======
 
+
 Element (formerly known as Vector and Riot) is a Matrix web client built using the [Matrix
 React SDK](https://github.com/matrix-org/matrix-react-sdk).
+
+The Safe Support Messaging Platform is a lightly customized fork of [Element](https://github.com/vector-im/element-web).
+
+Modifications
+=============
+
+* customized login screen (from `config.json`)
+* setup script that pulls configuration settings from admin app and writes to `config.json`
+
+Setup Script
+============
+
+** The `config.json` must have the following values set:
+- `settings_endpoint`: the url of the admin app endpoint to fetch the settings JSON
+- `default_server_config["m.homeserver']["base_url"]`: the homeserver url must match the `web_matrixServerUrl` setting in the admin app database.
+
+To run the script, use the command `yarn setup`.
+
 
 Supported Environments
 ======================

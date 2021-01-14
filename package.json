@@ -52,7 +52,8 @@
     "lint:js": "eslint src",
     "lint:types": "tsc --noEmit --jsx react",
     "lint:style": "stylelint 'res/css/**/*.scss'",
-    "test": "jest"
+    "test": "jest",
+    "setup": "node scripts/setup.js"
   },
   "dependencies": {
     "browser-request": "^0.3.3",
